@@ -32,9 +32,7 @@ class PhilosophyBot:
 
         self.rate_limiter = RateLimiter(max_calls=15, period=60)
 
-    # ----------------------------
     # Core Public Method
-    # ----------------------------
 
     def analyze_complete(self, user_quote: str) -> Dict:
 
@@ -64,9 +62,7 @@ class PhilosophyBot:
         self.quote_history.append(result)
         return result
 
-    # ----------------------------
     # LLM Structured Output
-    # ----------------------------
 
     def _generate_structured_analysis(self, user_quote: str) -> Dict:
 
@@ -108,28 +104,40 @@ Tone mode: {self.mode}
                 "anchor_quote": {}
             }
 
-    # ----------------------------
     # Retrieval
-    # ----------------------------
 
-    def find_similar_quotes(self, user_quote: str) -> List[Dict]:
-        matches = []
-        lowered = user_quote.lower()
+    def find_similar_quotes(self, user_quote: str, top_k: int = 3) -> List[Dict]:
+    """Find similar quotes using theme-based scoring."""
+    try:
+        results = self.similar_quotes_db.find_similar_quotes_expanded(
+            user_quote, top_k=top_k, include_unverified=False
+        )
+        
+        # Convert Quote objects to dictionaries
+        return [
+            {
+                "text": q.text,
+                "author": q.author,
+                "tradition": q.tradition,
+                "themes": q.themes,
+                "verified": q.verified,
+                "attribution_note": q.attribution_note,
+                "source_work": q.source_work,
+                "year": q.year,
+                "score": score,
+                "attribution_string": q.get_attribution_string(),
+            }
+            for q, score in results
+        ]
+    except Exception as e:
+        print(f"Warning: Theme-based matching failed: {e}")
+        return []
 
-        for entry in self.similar_quotes_db:
-            for theme in entry["themes"]:
-                if theme in lowered:
-                    matches.append(entry)
-                    break
-
-        return matches[:3]
-
-    # ----------------------------
     # Utility
-    # ----------------------------
 
     def set_mode(self, mode: str):
         if mode in self.MODES:
             self.mode = mode
         else:
+
             self.mode = "clarity"
