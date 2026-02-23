@@ -23,6 +23,7 @@ class PhilosophyQuotesDB:
             FileNotFoundError: If database file doesn't exist
             json.JSONDecodeError: If database file is invalid JSON
         """
+
         if not os.path.exists(db_path):
             raise FileNotFoundError(
                 f"Database file not found: {db_path}\n"
@@ -313,4 +314,5 @@ def load_quotes_db(db_path: str = "quotes_db.json") -> PhilosophyQuotesDB:
         db = load_quotes_db()
         quotes = db.get_all_quotes()
     """
+
     return PhilosophyQuotesDB(db_path)
