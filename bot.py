@@ -17,10 +17,18 @@ class PhilosophyBot:
     }
 
     def __init__(self, api_key: str = None, model_id: str = None, stream: bool = False):
-        self.api_key = api_key or os.getenv("HF_API_KEY")
-        self.model_id = model_id or os.getenv("MODEL_ID", "Qwen/Qwen2.5-7B-Instruct")
+    self.api_key = api_key or os.getenv("HF_API_KEY")
+    
+    if not self.api_key:
+        raise ValueError(
+            "Missing HF_API_KEY. Set it via:\n"
+            "  export HF_API_KEY='your_key_here'\n"
+            "  OR pass api_key parameter to PhilosophyBot(api_key='...')"
+        )
+    
+    self.model_id = model_id or os.getenv("MODEL_ID", "Qwen/Qwen2.5-7B-Instruct")
 
-        self.client = InferenceClient(model=self.model_id, token=self.api_key)
+    self.client = InferenceClient(model=self.model_id, token=self.api_key)
         self.stream = stream
 
         self.mode = "clarity"
@@ -117,7 +125,7 @@ Constraints: Keep under 120 words total. Be intellectually honest."""
         return parsed
         
     except json.JSONDecodeError as e:
-        print(f"⚠️  LLM returned invalid JSON: {e}")
+        print(f"  LLM returned invalid JSON: {e}")
         return {
             "surface_claim": "Analysis failed - model formatting error",
             "hidden_assumption": "",
@@ -126,7 +134,7 @@ Constraints: Keep under 120 words total. Be intellectually honest."""
             "anchor_quote": {}
         }
     except Exception as e:
-        print(f"⚠️  Error during analysis: {e}")
+        print(f"  Error during analysis: {e}")
         return {
             "surface_claim": "Analysis failed",
             "hidden_assumption": "",
@@ -172,4 +180,5 @@ Constraints: Keep under 120 words total. Be intellectually honest."""
         else:
 
             self.mode = "clarity"
+
 
