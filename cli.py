@@ -4,16 +4,40 @@ import json
 def main():
     bot = PhilosophyBot()
 
-    print("Modes:", ", ".join(bot.MODES.keys()))
-    selected = input("Select mode: ").strip()
+    # Initial mode selection
+    print("\n Philosophy Bot - Interactive Mode Selection\n")
+    for mode, description in bot.MODES.items():
+        print(f"  • {mode.upper():<12} - {description}")
+    
+    selected = input("\nSelect mode: ").strip().lower()
     bot.set_mode(selected)
 
     while True:
-        user_input = input("\nEnter quote (or exit): ")
+        print(f"\n[Mode: {bot.mode.upper()}]")
+        user_input = input("Enter quote or command (or 'exit'): ").strip()
 
         if user_input.lower() in ["exit", "quit"]:
+            print(" Goodbye!")
             break
+        
+        if user_input.startswith("/mode "):
+            mode = user_input.split()[1].lower()
+            bot.set_mode(mode)
+            print(f"✓ Mode changed to {bot.mode}")
+            continue
+        
+        if user_input == "/stats":
+            stats = bot.get_session_stats()
+            print(f"\n Session Stats:")
+            print(f"  API Calls: {stats['total_api_calls']}")
+            print(f"  Tokens Used: {stats['total_tokens_used']}")
+            print(f"  Est. Cost: ${stats['estimated_cost_usd']}")
+            continue
+        
+        if not user_input:
+            continue
 
+        # Regular quote analysis
         result = bot.analyze_complete(user_input)
 
         if result["status"] == "error":
@@ -51,3 +75,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
