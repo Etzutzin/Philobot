@@ -33,7 +33,7 @@ class PhilosophyBot:
 
         self.mode = "clarity"
         self.quote_history = []
-        self.similar_quotes_db = load_philosophy_quotes()
+        self.similar_quotes_db = load_quotes_db()
 
         self.total_tokens_used = 0
         self.api_calls = 0
@@ -188,6 +188,7 @@ Constraints: Keep under 120 words total. Be intellectually honest."""
         else:
 
             self.mode = "clarity"
+
 
 
 
