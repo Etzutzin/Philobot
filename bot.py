@@ -143,6 +143,14 @@ Constraints: Keep under 120 words total. Be intellectually honest."""
             "anchor_quote": {}
         }
 
+    def _extract_traditions_from_analysis(self, analysis: Dict) -> List[str]:
+    """Extract philosophical traditions mentioned in analysis."""
+    traditions = analysis.get("philosophical_grounding", [])
+    
+    # Validate against known traditions
+    known = self.similar_quotes_db.get_all_traditions()
+    return [t for t in traditions if t in known]
+
     # Retrieval
 
     def find_similar_quotes(self, user_quote: str, top_k: int = 3) -> List[Dict]:
@@ -180,5 +188,6 @@ Constraints: Keep under 120 words total. Be intellectually honest."""
         else:
 
             self.mode = "clarity"
+
 
 
