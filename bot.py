@@ -65,44 +65,75 @@ class PhilosophyBot:
     # LLM Structured Output
 
     def _generate_structured_analysis(self, user_quote: str) -> Dict:
+    """Generate structured analysis using LLM."""
+    
+    self.api_calls += 1
 
-        self.api_calls += 1
+    system_prompt = f"""You are a philosophy analyst. Return STRICT, VALID JSON with these EXACT fields:
+{{
+    "surface_claim": "one sentence summary",
+    "hidden_assumption": "the logical gap",
+    "philosophical_grounding": ["Tradition1", "Tradition2"],
+    "revised_quote": "more honest version",
+    "anchor_quote": {{
+        "text": "related canonical quote",
+        "author": "philosopher name",
+        "tradition": "tradition name"
+    }}
+}}
 
-        system_prompt = f"""
-Return STRICT JSON with fields:
-surface_claim,
-hidden_assumption,
-philosophical_grounding (list),
-revised_quote,
-anchor_quote (object with text, author, tradition)
+Tone: {self.MODES[self.mode]}
+Constraints: Keep under 120 words total. Be intellectually honest."""
 
-Tone mode: {self.mode}
-"""
-
+    try:
         response = self.client.chat_completion(
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_quote}
+                {"role": "user", "content": f'Analyze: "{user_quote}"'}
             ],
             max_tokens=500
         )
 
         content = response.choices[0].message.content
+        
+        # Try to extract JSON if wrapped in markdown code blocks
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
 
         if hasattr(response, "usage") and response.usage:
             self.total_tokens_used += response.usage.total_tokens
 
         import json
-        try:
-            return json.loads(content)
-        except:
-            return {
-                "surface_claim": content,
-                "hidden_assumption": "",
-                "philosophical_grounding": [],
-                "revised_quote": "",
-                "anchor_quote": {}
-            }
+        parsed = json.loads(content)
+        
+        # Validate required fields
+        required = ["surface_claim", "hidden_assumption", "philosophical_grounding", "revised_quote"]
+        for field in required:
+            if field not in parsed:
+                parsed[field] = ""
+        
+        return parsed
+        
+    except json.JSONDecodeError as e:
+        print(f"⚠️  LLM returned invalid JSON: {e}")
+        return {
+            "surface_claim": "Analysis failed - model formatting error",
+            "hidden_assumption": "",
+            "philosophical_grounding": [],
+            "revised_quote": "",
+            "anchor_quote": {}
+        }
+    except Exception as e:
+        print(f"⚠️  Error during analysis: {e}")
+        return {
+            "surface_claim": "Analysis failed",
+            "hidden_assumption": "",
+            "philosophical_grounding": [],
+            "revised_quote": "",
+            "anchor_quote": {}
+        }
 
     # Retrieval
 
@@ -141,3 +172,4 @@ Tone mode: {self.mode}
         else:
 
             self.mode = "clarity"
+
