@@ -1,7 +1,7 @@
 import os
 import json
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List
 from huggingface_hub import InferenceClient
 
 from quotes_db import load_quotes_db
@@ -27,7 +27,7 @@ class PhilosophyBot:
         auto_detect_language: bool = True,
     ):
         self.api_key = api_key or os.getenv("HF_API_KEY")
-    
+        
         if not self.api_key:
             raise ValueError(
                 "Missing HF_API_KEY. Set it via:\n"
@@ -65,7 +65,7 @@ class PhilosophyBot:
         if self.auto_detect_language:
             detected_lang = self.language_manager.detect_language(user_quote)
             if detected_lang != self.language_manager.user_language:
-                print(f" Detected language: {self.language_manager.SUPPORTED_LANGUAGES[detected_lang]['name']}")
+                print(f"🌍 Detected language: {self.language_manager.SUPPORTED_LANGUAGES[detected_lang]['name']}")
         
         validation = validate_quote(user_quote)
         if "error" in validation:
@@ -94,13 +94,12 @@ class PhilosophyBot:
         self.quote_history.append(result)
         return result
 
-
     # ----------------------------
     # LLM Structured Output
     # ----------------------------
 
     def _generate_structured_analysis(self, user_quote: str) -> Dict:
-        """Generate structured analysis using LLM with language support."""
+        """Generate structured analysis using LLM with improved error handling."""
         
         self.api_calls += 1
 
@@ -119,38 +118,61 @@ class PhilosophyBot:
                 max_tokens=500
             )
 
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content.strip()
             
-            # Extract JSON if wrapped in markdown code blocks
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-
             if hasattr(response, "usage") and response.usage:
                 self.total_tokens_used += response.usage.total_tokens
 
+            # Extract JSON if wrapped in markdown code blocks
+            if "```json" in content:
+                try:
+                    content = content.split("```json")[1].split("```")[0].strip()
+                except IndexError:
+                    pass
+            elif "```" in content:
+                try:
+                    content = content.split("```")[1].split("```")[0].strip()
+                except IndexError:
+                    pass
+            
+            # Try to find JSON object if extra text is present
+            if not content.startswith("{"):
+                start_idx = content.find("{")
+                end_idx = content.rfind("}")
+                if start_idx != -1 and end_idx != -1:
+                    content = content[start_idx:end_idx + 1]
+            
+            # Parse JSON with proper error handling
             parsed = json.loads(content)
             
-            # Validate required fields
+            # Validate required fields exist
             required = ["surface_claim", "hidden_assumption", "philosophical_grounding", "revised_quote"]
             for field in required:
                 if field not in parsed:
                     parsed[field] = ""
+                elif not parsed[field]:
+                    parsed[field] = ""
+            
+            # Ensure anchor_quote has proper structure
+            if "anchor_quote" not in parsed:
+                parsed["anchor_quote"] = {}
             
             return parsed
             
         except json.JSONDecodeError as e:
-            print(f"  LLM returned invalid JSON: {e}")
+            print(f"⚠️  LLM returned invalid JSON: {e}")
+            print(f"⚠️  Raw content: {content[:100]}...")
+            
             return {
-                "surface_claim": "Analysis failed - model formatting error",
-                "hidden_assumption": "",
+                "surface_claim": "Analysis failed - could not parse model response",
+                "hidden_assumption": "The model did not return properly formatted JSON",
                 "philosophical_grounding": [],
-                "revised_quote": "",
+                "revised_quote": "Please try again with a simpler quote",
                 "anchor_quote": {}
             }
         except Exception as e:
-            print(f"  Error during analysis: {e}")
+            print(f"⚠️  Unexpected error during analysis: {type(e).__name__}: {e}")
+            
             return {
                 "surface_claim": "Analysis failed",
                 "hidden_assumption": "",
@@ -163,25 +185,11 @@ class PhilosophyBot:
     # Retrieval
     # ----------------------------
 
-    def find_similar_quotes(self, user_quote: str, top_k: int = 3) -> List[Dict]:
+    def find_similar_quotes(self, user_quote: str) -> List[Dict]:
         """Find similar quotes using theme-based scoring."""
-        """    
-        user_words = set(user_quote.lower().split())
-
-         scored = []
-         for quote in self.quotes_db:  # assuming loaded Quote objects
-             overlap = user_words.intersection(set(quote.text.lower().split()))
-             score = len(overlap)
-   
-             if score > 0:
-                 scored.append((score, quote))
-
-         scored.sort(reverse=True, key=lambda x: x[0])
-         """
-
         try:
             results = self.similar_quotes_db.find_similar_quotes_expanded(
-                user_quote, top_k=top_k, include_unverified=False
+                user_quote, top_k=3, include_unverified=False
             )
             
             # Convert Quote objects to dictionaries
@@ -226,15 +234,7 @@ class PhilosophyBot:
     # ----------------------------
 
     def set_language(self, language_code: str) -> bool:
-        """
-        Change the bot's language.
-        
-        Args:
-            language_code: ISO 639-1 language code
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Change the bot's language."""
         return self.language_manager.set_user_language(language_code)
     
     def get_available_languages(self) -> str:
@@ -251,7 +251,7 @@ class PhilosophyBot:
     # Utility
     # ----------------------------
 
-    def set_mode(self, mode: str):
+    def set_mode(self, mode: str) -> bool:
         """Set the analysis mode."""
         if mode in self.MODES:
             self.mode = mode
